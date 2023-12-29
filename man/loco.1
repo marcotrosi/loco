@@ -1,0 +1,125 @@
+.TH LOCO 1 2023-12-29 0.2
+
+.SH NAME
+loco \- handle longest common string at start of line
+
+.SH SYNOPSIS
+.SY loco
+loco [\-vhpdis] [\-r <char>] [\-R <string>] [file]
+.YS
+
+.PP
+A file cannot be passed when text is piped into
+.BR loco .
+.PP
+The options -p -d -r -R are mutual exclusive.
+
+.SH DESCRIPTION
+Commandline program to handle longest common string at the beginning of each line.
+
+.SH OPTIONS
+.TP
+.B \-p
+print common longest string
+
+.TP
+.B \-d
+print without longest common string
+
+.TP
+.B \-i
+ignore first line completely, second line becomes first line
+
+.TP
+.B \-s
+skip, do not change first non-ignored line
+
+.TP
+.BR \-r " " \fIchar
+replace each character of longest common string with <char>
+
+.TP
+.BR \-R " " \fIstring
+replace longest common string with <string>
+
+.TP
+.B \-v
+print version info
+
+.TP
+.B \-h
+print help text
+
+.SH EXAMPLES
+.SS How the demo file looks like
+
+  $ cat demo.txt 
+.br
+  abcone
+.br
+  abctwo
+.br
+  abcthree
+
+.SS Print longest common string
+
+  $ loco -p demo.txt 
+.br
+  abc
+
+.SS Delete longest common string
+
+  $ loco -d demo.txt 
+.br
+  one
+.br
+  two
+.br
+  three
+
+.SS Replace each character of longest common string with _
+
+  $ loco -r _ demo.txt 
+.br
+  ___one
+.br
+  ___two
+.br
+  ___three
+
+.SS Replace longest common string with string
+
+  $ loco -R prefix- demo.txt 
+.br
+  prefix-one
+.br
+  prefix-two
+.br
+  prefix-three
+
+.SS Replace longest common string with string but skip first line and read from pipe
+
+  $ fd
+.br
+  foo/
+.br
+  foo/abc
+.br
+  foo/def
+.br
+  foo/ghi
+.br
+.br
+  $ fd | loco -s -R '   +- '
+.br
+  foo/
+.br
+     +- abc
+.br
+     +- def
+.br
+     +- ghi
+
+.SH AUTHOR
+Marco Trosi
+

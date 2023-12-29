@@ -20,7 +20,7 @@ file, and there was none, so I created `loco` to handle the **lo**ngest **co**mm
 
 ## Usage
 
-    loco [-vhpds] [-r <char>] [-R <string>] [file]
+    loco [-vhpdis] [-r <char>] [-R <string>] [file]
 
 You can't pass a file when text is piped into `loco`.
 
@@ -29,7 +29,8 @@ You can't pass a file when text is piped into `loco`.
 
     -p          print longest common string
     -d          print without longest common string
-    -s          skip first line
+    -i          ignore first line completely, second line becomes first line
+    -s          skip, do not change first non-ignored line
     -r <char>   replace each character of longest common string with <char>
     -R <string> replace longest common string with <string>
     -v          print version info
@@ -41,37 +42,37 @@ You can't pass a file when text is piped into `loco`.
 ### How the demo file looks like
 
     $ cat demo.txt 
-    abcdfoobar
-    abcdtrouper
-    abcdsuper
+    abcone
+    abctwo
+    abcthree
 
 ### Print longest common string
 
     $ loco -p demo.txt 
-    abcd
+    abc
 
 ### Delete longest common string
 
     $ loco -d demo.txt 
-    foobar
-    trouper
-    super
+    one
+    two
+    three
 
 ### Replace each character of longest common string with _
 
     $ loco -r _ demo.txt 
-    ____foobar
-    ____trouper
-    ____super
+    ___one
+    ___two
+    ___three
 
 ### Replace longest common string with string
 
     $ loco -R prefix- demo.txt 
-    prefix-foobar
-    prefix-trouper
-    prefix-super
+    prefix-one
+    prefix-two
+    prefix-three
 
-### Replace longest common string with string but skip first line and read from pipe
+### Replace longest common string with string but skip changing first line and read from pipe
 
     $ fd
     foo/

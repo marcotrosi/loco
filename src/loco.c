@@ -14,12 +14,13 @@ typedef char bool;
 /* functions <<< */
 void printHelp(void)
 {
-   printf("USAGE: loco [-vhpds] [-r <char>] [-R <string>] [file]\n");
+   printf("USAGE: loco [-vhpdis] [-r <char>] [-R <string>] [file]\n");
    printf("\n");
    printf("OPTIONS:\n");
    printf("  -p          print longest common string\n");
    printf("  -d          print without longest common string\n");
-   printf("  -s          skip first line\n");
+   printf("  -i          ignore first line completely, second line becomes first line\n");
+   printf("  -s          skip, do not change first non-ignored line\n");
    printf("  -r <char>   replace each character of longest common string with <char>\n");
    printf("  -R <string> replace longest common string with <string>\n");
    printf("  -v          print version info\n");
@@ -29,13 +30,13 @@ void printHelp(void)
 
 void printUsage(void)
 {
-   fprintf(stderr, "USAGE: loco [-vhpds] [-r <char>] [-R <string>] [file]\n");
+   fprintf(stderr, "USAGE: loco [-vhpdis] [-r <char>] [-R <string>] [file]\n");
    fprintf(stderr, "run 'loco -h' for more information\n");
 }
 
 void printVersion(void)
 {
-   printf("VERSION: 0.1\n");
+   printf("VERSION: 0.2\n");
 }
 /* >>> */
 
@@ -51,6 +52,7 @@ int main(int argc, char * const argv[])
    bool print                            = false;
    bool delete                           = false;
    bool skip                             = false;
+   bool ignore                           = false;
    bool replaceC                         = false;
    bool replaceS                         = false;
    char ReplChar                         = '\0';
@@ -63,14 +65,15 @@ int main(int argc, char * const argv[])
    unsigned long long int  MemNumOfLines = 0u;
    unsigned long long int  MemNumOfBytes = 0u;
    unsigned long long int  Line          = 0u;
-   unsigned char           FirstLine     = 0u;
+   unsigned char           FirstLineDetect  = 0u;
+   unsigned char           FirstLineProcess = 0u;
    unsigned long long int  Byte          = 0u;
    unsigned long long int  Column        = 0u;
    unsigned long long int  NumberOfLines = 0u;
    /* >>> */
 
    /* getopt <<< */
-   while((opt = getopt(argc, argv, ":vhpdsr:R:")) != -1)
+   while((opt = getopt(argc, argv, ":vhpdsir:R:")) != -1)
    {
       switch(opt)
       {
@@ -97,7 +100,14 @@ int main(int argc, char * const argv[])
          case 's':
             {
                skip = true;
-               FirstLine = 1u;
+               FirstLineProcess = 1u;
+               break;
+            }
+         case 'i':
+            {
+               ignore = true;
+               FirstLineDetect = 1u;
+               FirstLineProcess = 1u;
                break;
             }
          case 'r':
@@ -129,7 +139,7 @@ int main(int argc, char * const argv[])
          case '?':
             {
                fprintf(stderr, "loco error: unknown option => '%c'\n", optopt);
-               return 1;
+               return 8;
                break;
             }
       }
@@ -183,20 +193,24 @@ int main(int argc, char * const argv[])
 
       input = stdin;
    }
+
+   if(skip && ignore)
+   {
+      FirstLineProcess = 2u;
+   }
+
+   if((print + delete + replaceS + replaceC) > 1) /* as C doesn't have a logical exclusive OR operator, I'm making use of true being defined as 1 */
+   {
+      fprintf(stderr, "loco error: the options -p -d -r -R are mutual exclusive. pick one.\n");
+      printUsage();
+      return 9;
+   }
    /* >>> */
 
    /* read input <<< */
-   while((Character = fgetc(input)) != EOF)
+   while(true)
    {
-      if(Line == MemNumOfLines)
-      {
-         MemNumOfLines = MemNumOfLines + LINES_PER_MALLOC;
-         Lines = (char **)realloc(Lines, MemNumOfLines * sizeof(char *));
-         if(Lines == NULL)
-         {
-            /* TODO handle error */
-         }
-      }
+      Character = fgetc(input);
 
       if(Byte == MemNumOfBytes)
       {
@@ -205,7 +219,30 @@ int main(int argc, char * const argv[])
 
          if(Text == NULL)
          {
-            /* TODO handle error */
+            fprintf(stderr, "loco error: could not allocate memory\n");
+            return 1;
+         }
+      }
+
+      Text[Byte] = Character;
+
+      if(Character == EOF) break;
+
+      Byte++;
+   }
+
+   /* iterate bytes and create lines */
+   Byte = 0u;
+   while(true)
+   {
+      if(Line == MemNumOfLines)
+      {
+         MemNumOfLines = MemNumOfLines + LINES_PER_MALLOC;
+         Lines = (char **)realloc(Lines, MemNumOfLines * sizeof(char *));
+         if(Lines == NULL)
+         {
+            fprintf(stderr, "loco error: could not allocate memory\n");
+            return 1;
          }
       }
 
@@ -216,21 +253,24 @@ int main(int argc, char * const argv[])
          Line++;
       }
 
-      if(Character == '\n')
+      if(Text[Byte] == '\n')
       {
-         NewLine = true;
          Text[Byte] = '\0';
+
+         if(Text[Byte+1u] != EOF)
+         {
+            NewLine = true;
+         }
       }
-      else
+      else if(Text[Byte] == EOF)
       {
-         Text[Byte] = Character;
+         Text[Byte] = '\0';
+         NumberOfLines = Line;
+         break;
       }
 
       Byte++;
    }
-   Text[Byte]  = '\0';
-   Lines[Line] = NULL;
-   NumberOfLines = Line;
    /* >>> */
 
    /* delete or replace common part <<< */
@@ -238,9 +278,9 @@ int main(int argc, char * const argv[])
    {
       while(true) /* iterate columns */
       {
-         for(Line=0u ; Line < NumberOfLines ; Line++) /* iterate lines */
+         for(Line=FirstLineDetect ; Line < NumberOfLines ; Line++) /* iterate lines */
          {
-            if(Line == 0u)
+            if(Line == FirstLineDetect)
             {
                Character = Lines[Line][Column];
             }
@@ -254,15 +294,11 @@ int main(int argc, char * const argv[])
 
          if(CommonEnds == false)
          {
-            for(Line=0u ; Line < NumberOfLines ; Line++) /* iterate lines */
+            for(Line=FirstLineProcess ; Line < NumberOfLines ; Line++) /* iterate lines */
             {
                if(replaceC)
                {
                   Lines[Line][Column] = ReplChar;
-               }
-               else
-               {
-                  (Lines[Line])++;
                }
             }
          }
@@ -271,20 +307,27 @@ int main(int argc, char * const argv[])
             break;
          }
 
-         if(replaceC)
+         Column++;
+      }
+
+      if(replaceS && (Column == 0))
+      {
+         ReplString[0] = '\0';
+      }
+
+      if(replaceC)
+      {
+         Column = 0;
+      }
+
+      for(Line=0 ; Line < NumberOfLines ; Line++)
+      {
+         if( ((Line == 0) && (ignore || skip)) || ((Line == 1) && (ignore && skip)) )
          {
-            Column++;
+            printf("%s\n", Lines[Line]);
+            continue;
          }
-      }
-
-      if(skip)
-      {
-         printf("%s\n", Text); /* okay, I admit this is a bit of a dirty hack */
-      }
-
-      for(Line=FirstLine ; Line < NumberOfLines ; Line++)
-      {
-         printf("%s%s\n", ReplString, Lines[Line]);
+         printf("%s%s\n", ReplString, &(Lines[Line][Column]));
       }
    }
    /* >>> */
@@ -294,9 +337,9 @@ int main(int argc, char * const argv[])
    {
       while(true) /* iterate columns */
       {
-         for(Line=0u ; Line < NumberOfLines ; Line++) /* iterate lines */
+         for(Line=FirstLineDetect ; Line < NumberOfLines ; Line++) /* iterate lines */
          {
-            if(Line == 0u)
+            if(Line == FirstLineDetect)
             {
                Character = Lines[Line][Column];
             }
